@@ -2,6 +2,8 @@
 Module pour l'évolution NEAT et la visualisation des résultats.
 """
 
+import random
+
 from neat_classes import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -120,6 +122,7 @@ def visualize_genome(genome: Genome, title: str = "NEAT Network", figsize: Tuple
 
 def create_initial_genome(
     genome_id: int,
+   # species_id,
     num_inputs: int,
     num_outputs: int,
     fully_connected: bool = False,
@@ -338,6 +341,8 @@ def speciate_population(
     c3: float = 0.4,
     next_species_id: int = 0
 ) -> Tuple[List[List[Genome]], List[Genome], int]:
+    
+    
     """
     Répartit une population de génomes en espèces selon la compatibilité.
     
@@ -369,9 +374,38 @@ def speciate_population(
         parmi les membres de chaque espèce.
         Chaque génome se voit attribuer un species_id via son attribut genome.species_id.
     """
-    #todo: Implémenter la fonction de spéciation en suivant l'algorithme décrit ci-dessus.
-    return species_list, new_representatives, next_species_id
+    
+    species = {} # dicgt avec id_espec --> liste de genomes , utile pour créér la liste de liste de génome après
+    for rep in species_representatives :
+        species[rep.species_id] = []
+        
+    for genome in population:
+        test = True 
+        for rep in species_representatives:
+            distance = genome_distance(genome, rep, c1=c1, c2=c2, c3=c3)
+            if distance < compatibility_threshold:
+                genome.species_id = rep.species_id
+                test = False
+                species[rep.species_id].append(genome)
+                break
+        if test :
+            genome.species_id = next_species_id
+            next_species_id += 1
+            species_representatives.append(genome)
+            species[genome.species_id] = [genome]
+            
+    nouveaux_representants = []
+    liste_de_species = []
+    for i, genomes in species.items() :
+        if len(genomes) == 0:
+            continue
+        liste_de_species.append(genomes)   #on rajoute les liste de genome dans la liste totale
+        nouveaux_representants.append(random.choice(genomes))
+        
+        
+    return liste_de_species, nouveaux_representants, next_species_id
 
+    
 
 def reproduce_species(
     species_list: List[List[Genome]],
