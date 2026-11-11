@@ -1,12 +1,14 @@
-from poles_physics import *
+from poles_physics import SinglePoleEnv
 from neat_classes import *
 from neat_evolution import *
 
 LIMITE_PISTE = 2.4
 FORCE_MIN = 10.0
 FORCE_MAX = 40.0
-Force_x = 20.0  
+FORCE_X  = 20.0  
 DURATION = 10.0
+
+initial_state = [0.0, 0.0, np.pi + 0.05, -0.5]
 
 POPULATION_SIZE = 100
 NUM_EPOCHS = 50
@@ -14,7 +16,7 @@ SURVIVAL_RATE = 0.5
 KEEP_BEST =  2  
 
 def angle_error(theta):
-    return theta % (2.0 * np.pi) - np.pi
+    return (theta- np.pi + np.pi) % (2.0 * np.pi) - np.pi
     
 def better_naive_single_controller(observation):
     x = observation[0]
@@ -40,16 +42,26 @@ def better_naive_single_controller(observation):
 
     #maintenant on regarde la position du chariot 
     if x+x_dot < -LIMITE_PISTE:  #il est trop à gauche
-        force -= Force_x
+        force -= FORCE_X
     elif x+x_dot > LIMITE_PISTE: #il est trop à droite
-        force += Force_x
+        force += FORCE_X
     
     return force
 
+def better_naive_double_controller(observation):
+    x, x_dot, theta1, theta_dot1, theta2, theta_dot2 = observation
+
+    error_1 = (theta1 - np.pi + np.pi) % (2.0 * np.pi) - np.pi
+    error_2 = (theta2 - np.pi + np.pi) % (2.0 * np.pi) - np.pi
+
+    force = -( 1 * x + 4 * x_dot
+             + 400 * error_1 + 40 * theta_dot1
+             - 400 * error_2 - 100 * theta_dot2)
+
+    return float(np.clip(force, -50, 50))
 
 ##############################################################################
 
-initial_state = [0.0, 0.0, np.pi + 0.05, -0.5]
 
 genome = create_initial_genome(
     genome_id=0,
@@ -57,7 +69,7 @@ genome = create_initial_genome(
     num_outputs=1,
     fully_connected=True
 )
-visualize_genome(genome, title="Réseau initial 4→1")
+#visualize_genome(genome, title="Réseau initial 4→1")
 #output = genome.forward_pass(initial_state)
 #print(output[0])
     
@@ -77,6 +89,7 @@ def evaluate_pendule(genome: Genome) :
         if terminated or abs(angle) > np.pi/2:
             break
         resultat += 1.0
+    env.close()
     return (resultat * env.dt)/10.0  # Normalisation du score entre 0 et 1
 
 
@@ -90,7 +103,14 @@ history = evolve_population(
     survival_rate=SURVIVAL_RATE,
     keep_best=KEEP_BEST,
     crossover_prob=0.2,
-    use_species=False,
+    random_seed=42,
+    verbose=True,
+    verbose_interval=5,
+    use_species=True,  # ACTIVER LA SPÉCIATION
+    c1=1.0,
+    c2=1.0,
+    c3=0.4,
+    compatibility_threshold=3.0,
     early_stop_fitness=0.999
 )
 
@@ -100,3 +120,10 @@ history = evolve_population(
 #         population_size=POPULATION_SIZE,
 #         log_scale=False
 #     )
+
+for seed in (0, 1, 2):
+    h = evolve_population(evaluate_fn=evaluate_pendule, num_inputs=4, num_outputs=1,
+                           population_size=100, num_epochs=30, survival_rate=0.5,
+                              keep_best=2, crossover_prob=0.2, use_species=True,
+                              random_seed=seed, verbose=False, early_stop_fitness=0.999)
+    print( seed, h['best_genome'], h['best_genome'].fitness)
